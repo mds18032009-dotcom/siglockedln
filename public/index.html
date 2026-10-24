@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduSmart — Ruang Belajar & Komunitas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loginView" class="login-wrap">
+  <div class="login-art">
+    <div class="brand brand-light"><span class="brand-mark">E</span> EduSmart<span></span></div>
+    <div class="art-copy"><span class="eyebrow">RUANG TUMBUH BERSAMA</span><h1>Belajar lebih baik,<br><em>bareng-bareng.</em></h1><p>Tempat belajar, berbagi informasi sekolah, dan saling mendukung dengan nyaman.</p></div>
+    <div class="art-bottom"><span>✳</span> Satu ruang untuk seluruh warga sekolah</div>
+  </div>
+  <div class="login-panel">
+    <div class="mobile-brand brand"><span class="brand-mark">E</span> EduSmart<span></span></div>
+    <div class="login-box"><div class="welcome-icon">✦</div><p class="eyebrow">RUANG BELAJAR TERHUBUNG</p><h2 id="authTitle">Masuk ke EduSmart</h2><p id="authDescription" class="muted">Gunakan email dan kata sandi akun sekolah Anda.</p>
+      <form id="loginForm">
+        <label for="username">Email</label><input id="username" type="email" autocomplete="email" placeholder="nama@sekolah.sch.id" required>
+        <label for="password">Kata sandi</label><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" placeholder="Masukkan kata sandi" required><button type="button" id="togglePass" class="eye-btn" aria-label="Tampilkan kata sandi">◉</button></div>
+        <p id="loginError" class="error hidden"></p><button class="btn btn-primary full" type="submit">Masuk <span>↗</span></button>
+      </form>
+      <div id="registerView" class="hidden"><div class="auth-divider"><span>DETAIL AKUN</span></div><form id="registerForm"><label for="registerName">Nama lengkap</label><input id="registerName" maxlength="120" autocomplete="name" required><label for="registerEmail">Email</label><input id="registerEmail" type="email" maxlength="120" autocomplete="email" required><label for="registerPassword">Kata sandi</label><input id="registerPassword" type="password" minlength="8" autocomplete="new-password" required><label for="registerRole">Peran</label><select id="registerRole"><option value="SISWA">Siswa</option><option value="GURU">Guru</option><option value="STAF">Staf</option></select><label for="registerIdentity">NIS / NIP</label><input id="registerIdentity" maxlength="30" required><label for="registerDetail">Kelas / bidang tugas</label><input id="registerDetail" maxlength="80" required><p id="registerError" class="error hidden"></p><button class="btn btn-primary full" type="submit">Daftar</button><button class="btn btn-google full" id="googleRegister" type="button">Daftar dengan Google</button></form></div>
+      <p class="login-foot" id="authSwitchText">Belum punya akun?</p><button class="demo-link" id="authSwitch">Daftar akun sekolah</button><button class="btn btn-google full" id="googleLogin" type="button">Masuk dengan Google</button>
+      <p id="googleMessage" class="hint auth-hint"></p>
+    </div>
+  </div>
+</div>
+<div id="appView" class="app hidden">
+  <aside class="sidebar">
+    <a class="brand" href="#" data-page="beranda"><span class="brand-mark">E</span> EduSmart<span></span></a>
+    <div class="school-label">RUANG SEKOLAH</div>
+    <nav id="sideNav"></nav>
+    <div class="sidebar-bottom"><div class="help-card"><div class="help-icon">✳</div><b>Ruang aman untuk semua</b><p>Bagikan informasi dengan saling menghargai.</p></div>
+      <button id="logoutBtn" class="logout"><span>↪</span> Keluar akun</button>
+    </div>
+  </aside>
+  <main class="main-area">
+    <header class="topbar"><div class="crumb"><span>EduSmart</span><b>/</b><strong id="pageName">Beranda</strong></div><div class="top-actions"><span class="date-chip" id="today"></span><button class="icon-btn" id="notificationBtn" title="Notifikasi" aria-label="Buka notifikasi">♧<i></i></button><button class="user-pill" id="profileShortcut"><span class="avatar">◌</span><span><b id="topUser">Pengguna Demo</b><small id="topRole">Siswa</small></span><span class="chevron">⌄</span></button></div></header>
+    <div id="pageContent" class="content"></div>
+    <footer>© 2026 EduSmart <span>•</span> Tumbuh, belajar, saling mendukung.</footer>
+  </main>
+</div>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+<script src="attendance-bridge.js"></script>
+</body></html>
