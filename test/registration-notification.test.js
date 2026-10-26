@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+const BetterSqlite3 = require('better-sqlite3');
 const { test } = require('node:test');
 
 const projectRoot = path.resolve(__dirname, '..');
@@ -166,6 +167,65 @@ test('accounts auto-activate by default', { timeout: 30000 }, async () => {
     });
     assert.equal(login.response.status, 200);
     assert.equal(login.data.user.status, 'AKTIF');
+    const studentCookie = sessionCookie(login.response);
+
+    const secondStudentEmail = `student-${crypto.randomUUID()}@edusmart-test.example.com`;
+    const secondRegistration = await api(baseUrl, '/api/auth/register', {
+      method: 'POST',
+      body: {
+        name: 'Pendaftar Kedua',
+        email: secondStudentEmail,
+        password: 'Sekolah123',
+        role: 'SISWA',
+        identityNumber: `NIS-${crypto.randomUUID().slice(0, 12)}`,
+        detail: 'X IPA 2'
+      }
+    });
+    assert.equal(secondRegistration.response.status, 201);
+    const scoreDb = new BetterSqlite3(path.join(dataDir, 'edusmart.sqlite'));
+    const adminId = scoreDb.prepare('SELECT id FROM users WHERE email=?').get(adminEmail).id;
+    const secondStudentId = scoreDb.prepare('SELECT id FROM users WHERE email=?').get(secondStudentEmail).id;
+    const assignmentOne = crypto.randomUUID(), assignmentTwo = crypto.randomUUID();
+    const dueAt = new Date(Date.now() + 86400000).toISOString();
+    const insertAssignment = scoreDb.prepare('INSERT INTO assignments (id,title,instructions,subject,class_name,due_at,max_score,created_by) VALUES (?,?,?,?,?,?,?,?)');
+    insertAssignment.run(assignmentOne, 'Tes Nilai Satu', 'Instruksi tes satu.', 'Matematika', 'X IPA 2', dueAt, 100, adminId);
+    insertAssignment.run(assignmentTwo, 'Tes Nilai Dua', 'Instruksi tes dua.', 'Matematika', 'X IPA 2', dueAt, 200, adminId);
+    const insertSubmission = scoreDb.prepare('INSERT INTO submissions (id,assignment_id,student_id,score) VALUES (?,?,?,?)');
+    insertSubmission.run(crypto.randomUUID(), assignmentOne, login.data.user.id, 80);
+    insertSubmission.run(crypto.randomUUID(), assignmentTwo, login.data.user.id, 160);
+    insertSubmission.run(crypto.randomUUID(), assignmentOne, secondStudentId, 90);
+    insertSubmission.run(crypto.randomUUID(), assignmentTwo, secondStudentId, 180);
+    scoreDb.close();
+
+    const ownMetrics = await api(baseUrl, `/api/search/${login.data.user.id}/profile`, { cookie: studentCookie });
+    assert.equal(ownMetrics.data.averageScore, 80);
+    assert.equal(ownMetrics.data.rank, 2);
+    assert.equal(ownMetrics.data.approvedAttendance, 0);
+
+    const secondLogin = await api(baseUrl, '/api/auth/login', {
+      method: 'POST', body: { email: secondStudentEmail, password: 'Sekolah123' }
+    });
+    const secondStudentCookie = sessionCookie(secondLogin.response);
+    const privateMetrics = await api(baseUrl, `/api/search/${login.data.user.id}/profile`, { cookie: secondStudentCookie });
+    assert.equal(privateMetrics.data.canSeeAcademicMetrics, false);
+    assert.equal(privateMetrics.data.averageScore, null);
+    assert.equal(privateMetrics.data.rank, null);
+    assert.equal(privateMetrics.data.approvedAttendance, null);
+
+    const profile = await api(baseUrl, '/api/profile/me', { cookie: studentCookie });
+    assert.equal(profile.data.user.name, 'Pendaftar Otomatis');
+    assert.equal(profile.data.user.detail, 'X IPA 2');
+
+    const savedBio = await api(baseUrl, '/api/profile/me', {
+      method: 'PUT', body: { bio: 'Senang belajar bersama.' }, cookie: studentCookie
+    });
+    assert.equal(savedBio.response.status, 200);
+    const profileAfterEdit = await api(baseUrl, '/api/profile/me', { cookie: studentCookie });
+    assert.equal(profileAfterEdit.data.user.bio, 'Senang belajar bersama.');
+
+    const search = await api(baseUrl, '/api/search?q=Pendaftar%20Otomatis', { cookie: studentCookie });
+    assert.equal(search.response.status, 200);
+    assert.ok(search.data.people.some(person => person.email === undefined && person.name === 'Pendaftar Otomatis'));
   } finally {
     child.kill();
     if (child.exitCode === null) await new Promise(resolve => child.once('exit', resolve));

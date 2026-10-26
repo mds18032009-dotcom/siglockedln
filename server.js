@@ -117,7 +117,7 @@ const databasePromise = Promise.resolve({
 		CREATE TABLE IF NOT EXISTS users (
 			id TEXT PRIMARY KEY, full_name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
 			password_hash TEXT, role TEXT NOT NULL CHECK(role IN ('SISWA','GURU','STAF','ADMIN')),
-			identity_number TEXT NOT NULL UNIQUE, detail TEXT NOT NULL DEFAULT '', google_id TEXT UNIQUE,
+			identity_number TEXT NOT NULL UNIQUE, detail TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', google_id TEXT UNIQUE,
 			status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','AKTIF','NONAKTIF')),
 			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
@@ -147,6 +147,13 @@ const databasePromise = Promise.resolve({
 			max_score REAL NOT NULL DEFAULT 100, created_by TEXT NOT NULL REFERENCES users(id),
 			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
+		CREATE TABLE IF NOT EXISTS submissions (
+			id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+			student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			answer_text TEXT NOT NULL DEFAULT '', score REAL CHECK(score IS NULL OR score >= 0),
+			feedback TEXT NOT NULL DEFAULT '', submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(assignment_id,student_id)
+		);
 		CREATE TABLE IF NOT EXISTS attendance (
 			id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), day TEXT NOT NULL,
 			photo_name TEXT NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL,
@@ -164,6 +171,10 @@ const databasePromise = Promise.resolve({
 	const notificationColumns = await db.all('PRAGMA table_info(notifications)');
 	if (!notificationColumns.some(column => column.name === 'is_read')) {
 		await db.exec('ALTER TABLE notifications ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0');
+	}
+	const userColumns = await db.all('PRAGMA table_info(users)');
+	if (!userColumns.some(column => column.name === 'bio')) {
+		await db.exec("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''");
 	}
 	if (autoActivateAccounts) await db.run("UPDATE users SET status='AKTIF' WHERE status='PENDING'");
 	return db;
@@ -205,7 +216,7 @@ function sameOrigin(req, res, next) {
 }
 
 function publicUser(user) {
-	return { id: user.id, name: user.full_name, email: user.email, role: user.role.toLowerCase(), status: user.status };
+	return { id: user.id, name: user.full_name, email: user.email, role: user.role.toLowerCase(), status: user.status, detail: user.detail };
 }
 
 async function notifyAllAdmins(db, title, message) {
@@ -377,6 +388,90 @@ app.patch('/api/admin/accounts/:id/status', sameOrigin, requireActiveUser, requi
 		const result = await db.run('UPDATE users SET status = ? WHERE id = ? AND role != ?', parsed.data.status, req.params.id, 'ADMIN');
 		if (!result.changes) return res.status(404).json({ error: 'Akun tidak ditemukan.' });
 		res.json({ ok: true });
+	} catch (error) {
+		next(error);
+	}
+});
+
+app.get('/api/profile/me', requireActiveUser, async (req, res, next) => {
+	try {
+		const db = await databasePromise;
+		const user = await db.get('SELECT id,full_name AS name,role,detail,bio FROM users WHERE id=?', req.user.id);
+		const approvedAttendance = await db.get("SELECT COUNT(*) AS count FROM attendance WHERE user_id=? AND verification='DISETUJUI'", req.user.id);
+		let assignmentCount = 0;
+		if (req.user.role === 'ADMIN') assignmentCount = (await db.get('SELECT COUNT(*) AS count FROM assignments')).count;
+		else if (req.user.role === 'GURU') assignmentCount = (await db.get('SELECT COUNT(*) AS count FROM assignments WHERE created_by=?', req.user.id)).count;
+		else if (req.user.role === 'SISWA') assignmentCount = (await db.get('SELECT COUNT(*) AS count FROM assignments WHERE class_name=?', req.user.detail)).count;
+		res.json({ user, assignmentCount, approvedAttendance: approvedAttendance.count });
+	} catch (error) {
+		next(error);
+	}
+});
+
+app.put('/api/profile/me', sameOrigin, requireActiveUser, async (req, res, next) => {
+	const parsed = z.object({ bio: z.string().trim().max(300) }).safeParse(req.body);
+	if (!parsed.success) return res.status(422).json({ error: 'Bio maksimal 300 karakter.' });
+	try {
+		const db = await databasePromise;
+		await db.run('UPDATE users SET bio=? WHERE id=?', parsed.data.bio, req.user.id);
+		res.json({ bio: parsed.data.bio });
+	} catch (error) {
+		next(error);
+	}
+});
+
+app.get('/api/search', requireActiveUser, async (req, res, next) => {
+	const query = String(req.query.q || '').trim().slice(0, 80);
+	const role = String(req.query.role || '').toUpperCase();
+	if (query.length === 1) return res.status(422).json({ error: 'Masukkan minimal 2 karakter.' });
+	if (role && !['SISWA', 'GURU', 'STAF', 'ADMIN'].includes(role)) return res.status(422).json({ error: 'Filter peran tidak valid.' });
+	try {
+		const db = await databasePromise;
+		const escapedQuery = query.replace(/[%_]/g, '');
+		const pattern = `%${escapedQuery}%`;
+		const people = await db.all(`SELECT id,full_name AS name,role,detail,bio
+			FROM users WHERE status='AKTIF'
+			AND (?='' OR full_name LIKE ? COLLATE NOCASE OR detail LIKE ? COLLATE NOCASE)
+			AND (?='' OR role=?)
+			ORDER BY full_name COLLATE NOCASE LIMIT 50`, query ? escapedQuery : '', pattern, pattern, role, role);
+		res.json({ people });
+	} catch (error) {
+		next(error);
+	}
+});
+
+app.get('/api/search/:id/profile', requireActiveUser, async (req, res, next) => {
+	try {
+		const db = await databasePromise;
+		const person = await db.get("SELECT id,full_name AS name,role,detail,bio FROM users WHERE id=? AND status='AKTIF'", req.params.id);
+		if (!person) return res.status(404).json({ error: 'Profil tidak ditemukan.' });
+		let canSeeAcademicMetrics = person.id === req.user.id || req.user.role === 'ADMIN';
+		if (!canSeeAcademicMetrics && req.user.role === 'GURU' && person.role === 'SISWA') {
+			canSeeAcademicMetrics = Boolean(await db.get('SELECT 1 FROM assignments WHERE created_by=? AND class_name=? LIMIT 1', req.user.id, person.detail));
+		}
+		const approvedAttendance = await db.get("SELECT COUNT(*) AS count FROM attendance WHERE user_id=? AND verification='DISETUJUI'", person.id);
+		let averageScore = null, rank = null;
+		if (canSeeAcademicMetrics && person.role === 'SISWA') {
+			const score = await db.get(`SELECT SUM(s.score) * 100.0 / NULLIF(SUM(a.max_score),0) AS average
+				FROM submissions s JOIN assignments a ON a.id=s.assignment_id
+				WHERE s.student_id=? AND s.score IS NOT NULL`, person.id);
+			averageScore = score.average === null ? null : Math.round(score.average * 10) / 10;
+			if (averageScore !== null) {
+				const ranking = await db.get(`WITH averages AS (
+					SELECT u.id, SUM(s.score) * 100.0 / NULLIF(SUM(a.max_score),0) AS average_score
+					FROM users u LEFT JOIN submissions s ON s.student_id=u.id
+					LEFT JOIN assignments a ON a.id=s.assignment_id
+					WHERE u.status='AKTIF' AND u.role='SISWA' AND u.detail=?
+					GROUP BY u.id
+				), ranked AS (
+					SELECT id, RANK() OVER (ORDER BY average_score DESC) AS class_rank
+					FROM averages WHERE average_score IS NOT NULL
+				)
+				SELECT class_rank AS rank FROM ranked WHERE id=?`, person.detail, person.id);
+				rank = ranking?.rank ?? null;
+			}
+		}
+		res.json({ person, canSeeAcademicMetrics, averageScore, rank, approvedAttendance: canSeeAcademicMetrics ? approvedAttendance.count : null });
 	} catch (error) {
 		next(error);
 	}

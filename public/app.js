@@ -24,14 +24,11 @@ const seedTasks = [
  {id:3,title:'Laporan Praktik Routing',desc:'Lampirkan topologi jaringan dan hasil konfigurasi router.',category:'Bengkel',subject:'Administrasi Jaringan',due:'2026-10-15',status:'selesai',class:'XI TKJ 2',score:88},
  {id:4,title:'Mini Project Halaman Web',desc:'Buat halaman profil responsif menggunakan HTML dan CSS.',category:'Bengkel',subject:'Pemrograman Web',due:'2026-10-21',status:'selesai',class:'XI RPL 1',score:95}
 ];
-let currentUser=null, currentPage='beranda', taskFilter='Semua', taskCategory='Semua', searchRole='Semua', searchQuery='', tasks=JSON.parse(localStorage.getItem('sh_tasks')||'null')||seedTasks, topics=JSON.parse(localStorage.getItem('sh_topics')||'null')||seedTopics, attendance=JSON.parse(localStorage.getItem('sh_att')||'null')||[
- {name:'Alya Putri',kelas:'XI RPL 1',status:'Hadir'},{name:'Raka Pratama',kelas:'XI TKJ 2',status:'Sakit'},{name:'Andi Wijaya',kelas:'XI RPL 1',status:'Hadir'},{name:'Nadia Safitri',kelas:'XI TKJ 2',status:'Izin'},{name:'Fajar Ramadhan',kelas:'XI RPL 1',status:'Alpha'}
-];
-let bioText=localStorage.getItem('sh_bio')||'Suka belajar hal baru, terutama teknologi dan desain.', showAverage=true, showRank=true, cameraStream=null, currentPosition=null;
-let notifications=JSON.parse(localStorage.getItem('sh_notifications')||'null')||[{id:1,title:'Tugas baru dari Bu Dina',message:'Latihan Persamaan Kuadrat perlu dikumpulkan minggu ini.',time:Date.now()-3600000,read:false},{id:2,title:'Selamat datang di EduSmart',message:'Ruang belajar dan komunitas sekolah kini ada di satu tempat.',time:Date.now()-86400000,read:true}];
-let adminAccounts=JSON.parse(localStorage.getItem('sh_accounts')||'null')||[{name:'Rafi Pratama',role:'Siswa',identity:'2024015',detail:'X IPA 2',status:'Aktif'},{name:'Siti Nurhaliza',role:'Siswa',identity:'2023087',detail:'XI IPS 1',status:'Menunggu'},{name:'Dewi Lestari',role:'Guru',identity:'1987012',detail:'Matematika',status:'Aktif'},{name:'Joko Santoso',role:'Staf',identity:'1985021',detail:'Tata Usaha',status:'Aktif'}];
-let schoolSettings=JSON.parse(localStorage.getItem('sh_settings')||'null')||{latitude:'-6.200000',longitude:'106.816666',radius:100,open:'06:30',late:'07:15',cutoff:'23:59',alpha:3};
-let identityRequests=JSON.parse(localStorage.getItem('sh_unlocks')||'null')||[{id:1,post:'Keran dekat bengkel perlu diperbaiki',reason:'Perlu menghubungi pelapor untuk klarifikasi lokasi dan tindak lanjut.',status:'Menunggu',date:Date.now()-7200000}];
+let currentUser=null, currentPage='beranda', taskFilter='Semua', taskCategory='Semua', searchRole='Semua', searchQuery='', tasks=[], topics=[], attendance=[];
+let bioText='', showAverage=true, showRank=true, cameraStream=null, currentPosition=null;
+let notifications=[], adminAccounts=[];
+let schoolSettings={latitude:'-6.200000',longitude:'106.816666',radius:100,open:'06:30',late:'07:15',cutoff:'23:59',alpha:3};
+let identityRequests=[];
 const userNav=[['beranda','⌂','Beranda'],['cari','⌕','Cari'],['absen','◷','Absen'],['tugas','▤','Tugas'],['profil','◉','Profil']];
 const adminNav=[['beranda','⌂','Beranda'],['cari','⌕','Cari'],['kehadiran','◷','Kehadiran'],['laporan','▥','Laporan'],['profil','◉','Profil']];
 function persist(){localStorage.setItem('sh_topics',JSON.stringify(topics));localStorage.setItem('sh_tasks',JSON.stringify(tasks));localStorage.setItem('sh_att',JSON.stringify(attendance))}
