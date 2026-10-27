@@ -1,4 +1,5 @@
-# EduSmart
+# SIGLOCKEDIN
+
 
 Aplikasi sekolah berbasis Express, HTML, CSS, dan JavaScript. Data akun, sesi, posting, komentar, tugas, pengaturan sekolah, dan kehadiran disimpan di SQLite.
 
